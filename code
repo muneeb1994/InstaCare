@@ -1,0 +1,630 @@
+declare @sql varchar(4000)=''
+select @sql = 
+@sql + 'alter table ' + schemas.name+'.'+tables.name + ' drop constraint [' + rtrim(foreign_keys.name) +'];' + char(13)
+from sys.tables 
+inner join sys.foreign_keys on foreign_keys.parent_object_id = tables.object_id
+inner join sys.schemas on schemas.schema_id = foreign_keys.schema_id
+
+execute (@sql)
+
+drop trigger if exists trigger_insert_review
+drop procedure if exists bookappointment
+drop procedure if exists leavereview;
+drop index  if exists account_patientid_idx on account
+drop index  if exists prescription_patientid_idx on prescription
+drop index  if exists prescription_doctorid_idx on prescription
+drop index if exists appointment_appointment_date_idx on appointment
+drop index if exists sees_patientid_idx on sees
+drop index if exists sees_doctorid_idx on sees
+drop index if exists review_doctorid_idx on review
+drop index if exists review_patientid_idx on review
+drop index if exists  appointment_patiendid_idx on appointment
+drop index if exists appointment_doctorid_idx on appointment
+drop index if exists account_created_on_idx on account
+drop index if exists review_stars_idx on review
+drop table if exists audioappointment;
+drop table if exists videoappointment;
+drop table if exists prescription;
+drop table if exists sees;
+drop table if exists appointment;
+drop table if exists review;
+drop table if exists doctor;
+drop table if exists account;
+drop table if exists patient;
+drop table if exists reviewchange;
+drop sequence if exists patient_seq;
+drop sequence if exists account_seq;
+drop sequence if exists doctor_seq;
+drop sequence if exists prescription_seq;
+drop sequence if exists review_seq;
+drop sequence if exists appointment_seq;
+drop sequence if exists reviewchange_seq ;
+
+
+
+--Creating tables
+Create table patient (
+patientid decimal(12) not null primary key,
+first_name varchar(32) not null,
+last_name varchar(32) not null,
+gender Varchar(6) not null,
+patient_dob date not null
+);
+
+create table account (
+accountid decimal(12) not null primary key,
+patientid decimal(12) not null foreign key references patient (patientid),
+username varchar (12) not null,
+created_on date not null
+);
+
+create table doctor (
+doctorid decimal(12) not null primary key,
+dr_first_name varchar(32) not null,
+dr_last_name varchar(32) not null,
+dr_gender varchar (6) not null,
+dr_nationality varchar (20) not null,
+languages varchar (50) not null,
+years_exp decimal(2) not null
+);
+
+create table prescription (
+prescriptionid decimal(12) not null primary key,
+patientid decimal(12) not null foreign key references patient (patientid),
+doctorid decimal(12) not null foreign key references doctor (doctorid),
+prescription_note varchar(500)
+);
+
+create table sees (
+doctorid decimal(12) not null foreign key references doctor (doctorid),
+patientid decimal(12) not null foreign key references patient (patientid)
+);
+
+create table review (
+reviewid decimal(12) not null primary key,
+patientid decimal(12) not null foreign key  references patient (patientid),
+doctorid decimal(12) not null foreign key references doctor (doctorid),
+review_date date not null,
+stars decimal (5) not null,
+review_note varchar (300)
+)
+
+create table appointment (
+appointmentid decimal(12) not null primary key,
+patientid decimal(12) not null foreign key references patient (patientid),
+doctorid decimal(12) not null foreign key references doctor (doctorid),
+appointment_date date not null,
+appointment_time time not null
+);
+
+create table audioAppointment (
+appointmentid decimal(12) not null primary key foreign key references appointment (appointmentid), 
+audio_length time
+);
+
+create table videoappointment (
+appointmentid decimal(12) not null primary key foreign key references appointment (appointmentid),
+video_length time,
+video_type varchar(12)
+);
+
+create table reviewchange (
+reviewchangeid decimal(12) not null primary key,
+reviewid decimal(12) not null foreign key references review(reviewid),
+old_review varchar(300),
+new_review varchar(300),
+old_stars decimal(1),
+new_stars decimal(1),
+review_change_date DATE
+);
+
+--Sequence Creation
+create sequence patient_seq start with 1;
+create sequence account_seq start with 1;
+create sequence doctor_seq start with 1;
+create sequence prescription_seq start with 1;
+create sequence review_seq start with 1;
+create sequence appointment_seq start with 1;
+create sequence reviewchange_seq start with 1;
+
+
+--Index Creation
+create index account_patientid_idx on account(patientid)
+create index prescription_patientid_idx on prescription(patientid)
+create index prescription_doctorid_idx on prescription(doctorid)
+create index sees_patientid_idx on sees(patientid)
+create index sees_doctorid_idx on sees(doctorid)
+create index review_doctorid_idx on review(doctorid)
+create index review_patientid_idx on review(patientid)
+create index appointment_patiendid_idx on appointment(patientid)
+create index appointment_doctorid_idx on appointment(doctorid)
+create index account_created_on_idx on account(created_on)
+create index review_stars_idx on review(stars)
+create index appointment_appointment_date_idx on appointment(appointment_date)
+
+
+--Stored procedure about booking an appointment
+Go 
+CREATE PROCEDURE bookappointment @patientid decimal(12), @doctorid DECIMAL(12), @appointment_date date, @appointment_time time  
+AS 
+
+BEGIN 
+  DECLARE @appointmentid DECIMAL(12) = NEXT VALUE FOR appointment_seq
+ 
+  INSERT INTO appointment(appointmentid, patientid, doctorid, appointment_date, appointment_time) 
+  VALUES(@appointmentid, @patientid, @doctorid, @appointment_date, @appointment_time); 
+  
+END
+
+GO
+
+
+-- Stored procedure about leaving a review
+CREATE PROCEDURE leavereview @patientid DECIMAL(12), @doctorid DECIMAL (12), @review_date date, @stars DECIMAL (5), @review_note VARCHAR (500) 
+AS 
+
+BEGIN 
+  DECLARE @reviewid decimal(12) =   next value for review_seq 
+
+  INSERT INTO review (reviewid, patientid, doctorid, review_date, stars, review_note) 
+  VALUES(@reviewid, @patientid, @doctorid, @review_date, @stars, @review_note); 
+  
+END
+
+GO
+
+--Sequence Declaration
+DECLARE @current_patient_seq INT = NEXT VALUE FOR patient_seq;
+DECLARE @current_appointment_seq INT = NEXT VALUE FOR appointment_seq;
+DECLARE @current_doctor_seq INT = NEXT VALUE FOR doctor_seq;
+
+
+--Populating Tables
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Michael', 'Scott', 'Male', CAST ('06-SEP-1965' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Zafri', 'Khan', 'Male', 'Pakistani', 'Urdu, Hindi', 5);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('16-SEP-2021' AS DATE), CAST ('13:30' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Dwight', 'Schrute', 'Male', CAST ('06-SEP-1974' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('16-SEP-2021' AS DATE), CAST ('14:30' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Jim', 'Halpert', 'Male', CAST ('09-Aug-1984' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Lee', 'Wang', 'Male', 'Chinese', 'English, Chinese', 12);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('19-SEP-2021' AS DATE), CAST ('08:00' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Pamela', 'Beesly', 'Female', CAST ('11-May-1980' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('20-SEP-2021' AS DATE), CAST ('18:30' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Stanley', 'Hudson', 'Male', CAST ('17-Aug-1960' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Ralph', 'Mckenzie', 'Male', 'British', 'English', 34);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('19-SEP-2021' AS DATE), CAST ('09:00' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Meredith', 'Palmer', 'Female', CAST ('11-May-1958' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('18-SEP-2021' AS DATE), CAST ('10:30' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Creed', 'Bratton', 'Male', CAST ('09-Nov-1949' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Juan', 'Martinez', 'Male', 'Mexican', 'English, Spanish', 4);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('24-SEP-2021' AS DATE), CAST ('07:00' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Oscar', 'Nunez', 'Male', CAST ('19-May-1972' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('22-SEP-2021' AS DATE), CAST ('08:00' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Jan', 'Levine', 'Female', CAST ('23-Aug-1974' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Tanisha', 'Dutt', 'Female', 'Indian', 'English, Spanish, Hindi, Urdu', 2);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('20-SEP-2021' AS DATE), CAST ('15:00' AS time) );
+
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Gabe', 'Lewis', 'Male', CAST ('06-Dec-1979' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('22-SEP-2021' AS DATE), CAST ('09:00' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Ryan', 'Kelp', 'Male', CAST ('23-Aug-1984' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Sean', 'Dean', 'Male', 'American', 'English', 9);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('01-Oct-2021' AS DATE), CAST ('11:00' AS time) );
+
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Vladimir', 'Berbatov', 'Male', CAST ('29-Dec-1980' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('01-OCT-2021' AS DATE), CAST ('08:00' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Doug', 'Judy', 'Male', CAST ('20-Aug-1980' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'John', 'Cena', 'Male', 'American', 'English', 9);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('01-Oct-2021' AS DATE), CAST ('11:00' AS time) );
+
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Fernando', 'Torress', 'Male', CAST ('16-Nov-1980' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('01-OCT-2021' AS DATE), CAST ('08:00' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Kelly', 'Kapoor', 'Female', CAST ('23-Nov-1990' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Melissa', 'Sanchez', 'Female', 'Mexican', 'English, Mexican', 18);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('04-Oct-2021' AS DATE), CAST ('17:00' AS time) );
+
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Cristiano', 'Ronaldo', 'Male', CAST ('29-Jan-1984' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('03-OCT-2021' AS DATE), CAST ('19:00' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Erin', 'Steward', 'Female', CAST ('29-Mar-1990' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Mehreen', 'Khan', 'Female', 'Pakistani', 'Urdu, Hindi, English, Mexican', 1);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('04-Oct-2021' AS DATE), CAST ('17:00' AS time) );
+
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Chelsea', 'Handler', 'Female', CAST ('15-June-1967' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('06-OCT-2021' AS DATE), CAST ('21:30' AS time) );
+
+set @current_patient_seq = next value for patient_seq;
+set @current_doctor_seq = next value for doctor_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Tim', 'Howard', 'Male', CAST ('13-Feb-1955' AS DATE));
+Insert into doctor (doctorid, dr_first_name, dr_last_name, dr_gender, dr_nationality, languages, years_exp)
+Values (@current_doctor_seq, 'Alice', 'Nian', 'Female', 'Canadian', 'English', 10);
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('09-Oct-2021' AS DATE), CAST ('14:30' AS time) );
+
+
+set @current_patient_seq = next value for patient_seq;
+set @current_appointment_seq = next value for appointment_seq;
+Insert into patient (patientid, first_name, last_name, gender, patient_dob)
+Values (@current_patient_seq, 'Kim', 'Kelsey', 'Female', CAST ('18-June-1997' AS DATE));
+Insert into appointment (appointmentid, patientid, doctorid, appointment_date, appointment_time)
+Values (Next value for appointment_seq, @current_patient_seq, @current_doctor_seq, CAST ('06-OCT-2021' AS DATE), CAST ('15:30' AS time) );
+
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'zafri'), (select patientid from patient where first_name = 'Michael'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'zafri'), (select patientid from patient where first_name = 'Dwight'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Lee'), (select patientid from patient where first_name = 'Jim'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Lee'), (select patientid from patient where first_name = 'Pamela'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Ralph'), (select patientid from patient where first_name = 'Stanley'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Ralph'), (select patientid from patient where first_name = 'Meredith'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Juan'), (select patientid from patient where first_name = 'Creed'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Juan'), (select patientid from patient where first_name = 'Oscar'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Tanisha'), (select patientid from patient where first_name = 'Jan'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Tanisha'), (select patientid from patient where first_name = 'Gabe'));
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Sean'), (select patientid from patient where first_name = 'Ryan'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Sean'), (select patientid from patient where first_name = 'Vladimir'));
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'John'), (select patientid from patient where first_name = 'Doug'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'John'), (select patientid from patient where first_name = 'Fernando'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'melissa'), (select patientid from patient where first_name = 'Kelly'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'melissa'), (select patientid from patient where first_name = 'Cristiano'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'mehreen'), (select patientid from patient where first_name = 'Erin'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'mehreen'), (select patientid from patient where first_name = 'Chelsea'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Alice'), (select patientid from patient where first_name = 'Tim'));	
+insert into sees
+values ((select doctorid from doctor where dr_first_name = 'Alice'), (select patientid from patient where first_name = 'Kim'));	
+
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Michael'), (select doctorid from doctor where dr_first_name = 'Zafri'),
+CAST ('29-SEP-2021' AS DATE), 4 , 'Very good doctor.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Dwight'), (select doctorid from doctor where dr_first_name = 'Zafri'),
+CAST ('29-SEP-2021' AS DATE), 5 , 'Very nice experience with this doctor.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Jim'), (select doctorid from doctor where dr_first_name = 'Lee'),
+CAST ('29-SEP-2021' AS DATE), 5 , 'Would recommend Dr. Lee to anyone suffering from depression.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Pamela'), (select doctorid from doctor where dr_first_name = 'Lee'),
+CAST ('29-SEP-2021' AS DATE), 5 , 'Hands down the best doctor i have ever seen.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Stanley'), (select doctorid from doctor where dr_first_name = 'Ralph'),
+CAST ('30-SEP-2021' AS DATE), 4 , 'Very knowledgeable and understanding');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Meredith'), (select doctorid from doctor where dr_first_name = 'Ralph'),
+CAST ('30-SEP-2021' AS DATE), 4 , 'Takes time to listen to patients. Would recommend');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Creed'), (select doctorid from doctor where dr_first_name = 'Juan'),
+CAST ('30-SEP-2021' AS DATE), 5 , 'Awesome experience. I already feel better');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Oscar'), (select doctorid from doctor where dr_first_name = 'Juan'),
+CAST ('05-OCT-2021' AS DATE), 4 , 'Would definitely see Dr. Juan again.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Jan'), (select doctorid from doctor where dr_first_name = 'Tanisha'),
+CAST ('08-OCT-2021' AS DATE), 1 , 'dont take her. Worst doctor ever.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Gabe'), (select doctorid from doctor where dr_first_name = 'Tanisha'),
+CAST ('08-OCT-2021' AS DATE), 1 , 'Does not answer questions properly. Would not recommend. Rushes to end the appointment. Ended my audio appointment in less than 5 minutes and said she is getting late');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Ryan'), (select doctorid from doctor where dr_first_name = 'Sean'),
+CAST ('08-OCT-2021' AS DATE), 5 , 'By far, the most awesome doctor i have  ever seen');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Vladimir'), (select doctorid from doctor where dr_first_name = 'Sean'),
+CAST ('08-OCT-2021' AS DATE), 5 , 'Awesome doctor');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Doug'), (select doctorid from doctor where dr_first_name = 'John'),
+CAST ('09-OCT-2021' AS DATE), 4 , 'OK Experience');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Fernando'), (select doctorid from doctor where dr_first_name = 'John'),
+CAST ('09-OCT-2021' AS DATE), 5 , 'Spends good amount of time answering questions. Would recommend to other people.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Kelly'), (select doctorid from doctor where dr_first_name = 'Melissa'),
+CAST ('09-OCT-2021' AS DATE), 4 , 'good experience.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Cristiano'), (select doctorid from doctor where dr_first_name = 'Melissa'),
+CAST ('09-OCT-2021' AS DATE), 4 , 'Answered all my questions. Would recommend.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Erin'), (select doctorid from doctor where dr_first_name = 'Mehreen'),
+CAST ('10-OCT-2021' AS DATE), 3 , 'Very patient with her patients.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Chelsea'), (select doctorid from doctor where dr_first_name = 'Mehreen'),
+CAST ('10-OCT-2021' AS DATE), 5 , 'Would definitely recommend her.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Tim'), (select doctorid from doctor where dr_first_name = 'Alice'),
+CAST ('10-OCT-2021' AS DATE), 4 , 'Average experience.');
+insert into review (reviewid, patientid, doctorid, review_date, stars, review_note)
+values (next value for review_seq, (select patientid from patient where first_name = 'Kim'), (select doctorid from doctor where dr_first_name = 'Alice'),
+CAST ('10-OCT-2021' AS DATE), 4 , 'Good dr. Thank you.');
+
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'michael'),(select doctorid from doctor where dr_first_name = 'zafri'), 'Restlessness, anxiety. Take Zoloft for 2 weeks');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'dwight'),(select doctorid from doctor where dr_first_name = 'zafri'), 'Depressed for 2 years. Prescribing Venlaflexine for 3 weeks and follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'jim'),(select doctorid from doctor where dr_first_name = 'lee'), 'Depressed for 4 years. Prescribing Venlaflexine for 4 weeks and follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'pamela'),(select doctorid from doctor where dr_first_name = 'lee'), 'Suicidal tendencies. Prescribing Zoloft for a month. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'stanley'),(select doctorid from doctor where dr_first_name = 'ralph'), 'Social anxiety. Forwarding to therapist');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'meredith'),(select doctorid from doctor where dr_first_name = 'ralph'), 'Self harm case. Prescribing Fluvoxamine Forwarding to therapist');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'creed'),(select doctorid from doctor where dr_first_name = 'juan'), 'Eating disorder. Prescribing Sigma for 2 weeks. Please follow up after');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'oscar'),(select doctorid from doctor where dr_first_name = 'juan'), 'Believes in flat earth theory. Forwarding to therapist');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'jan'),(select doctorid from doctor where dr_first_name = 'tanisha'), 'Self harm case. Therapist alerted');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'gabe'),(select doctorid from doctor where dr_first_name = 'tanisha'), 'Suicidial tendencies. Authorities alerted');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'ryan'),(select doctorid from doctor where dr_first_name = 'sean'), 'Severe depression. Prescribed zoloft for 4 weeks. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'vladimir'),(select doctorid from doctor where dr_first_name = 'sean'), 'Drug addiction. Prescribed Fluvoxamine for 2.5 weeks. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'doug'),(select doctorid from doctor where dr_first_name = 'john'), 'OCD case. Prescribed zoloft, Venlaflexine for 4 weeks. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'fernando'),(select doctorid from doctor where dr_first_name = 'john'), 'ADHD case. Prescribed zoloft for 2 weeks. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'kelly'),(select doctorid from doctor where dr_first_name = 'melissa'), 'Eating disorder case. Prescribed zoloft for 4 weeks. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'cristiano'),(select doctorid from doctor where dr_first_name = 'melissa'), 'BPD case. Prescribed Amoxociline for 4 weeks. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'erin'),(select doctorid from doctor where dr_first_name = 'mehreen'), 'ADHD case. Prescribed zoloft for 3 weeks. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'chelsea'),(select doctorid from doctor where dr_first_name = 'mehreen'), 'self harm case. Prescribed Effexor for 3 weeks. Authorities alerted');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'tim'),(select doctorid from doctor where dr_first_name = 'alice'), 'Eating disorder case. Prescribed zoloft for 4 weeks. Please follow up');
+insert into prescription (prescriptionid, patientid, doctorid, prescription_note)
+values (next value for prescription_seq, (select patientid from patient where first_name = 'kim'),(select doctorid from doctor where dr_first_name = 'alice'), 'OCD Case. Prescribed Venlaflexine and Fluvoxamine. Forwarded to therapist. Follow up in 3 weeks');
+
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'michael'), 'mike', CAST('01-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'dwight'), 'beetjuice', CAST('05-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'jim'), 'bigtuna', CAST('15-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'pamela'), '4eyes', CAST('16-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'stanley'), 'stan', CAST('16-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'meredith'), 'mpalmer', CAST('11-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'creed'), 'creedb', CAST('14-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'oscar'), 'onunez', CAST('19-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'jan'), 'jlevine', CAST('12-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'Gabe'), 'tallandthin', CAST('12-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'ryan'), 'mbaforsure', CAST('28-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'vladimir'), 'russiandawg', CAST('28-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'doug'), 'bentleysteal', CAST('25-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'fernando'), 'lp4ever', CAST('26-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'kelly'), 'showstopper', CAST('27-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'cristiano'), 'cr7', CAST('27-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'erin'), 'alwayssleepy', CAST('28-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'chelsea'), 'talkshowhost', CAST('29-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'tim'), 'thoward', CAST('29-SEP-2021' as DATE));
+insert into account (accountid, patientid, username, created_on)
+values (next value for account_seq, (select patientid from patient where first_name = 'kim'), 'kkelsey', CAST('29-SEP-2021' as DATE));
+
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 1), CAST ('00:20:38' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 2), CAST ('00:21:26' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 3), CAST ('00:23:42' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 4), CAST ('00:23:54' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 5), CAST ('00:19:06' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 6), CAST ('00:21:25' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 7), CAST ('00:17:32' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 8), CAST ('00:23:45' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 9), CAST ('00:04:38' AS TIME));
+insert into audioAppointment (appointmentid, audio_length)
+values ((select appointmentid from appointment where patientid = 10), CAST ('00:04:54' AS TIME));
+
+insert into videoappointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 11), CAST ('00:20:25' AS TIME), 'Skype');
+insert into videoappointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 12), CAST ('00:20:32' AS TIME), 'Skype');
+insert into videoappointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 13), CAST ('00:20:21' AS TIME), 'Zoom');
+insert into videoAppointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 14), CAST ('00:23:38' AS TIME), 'Webex');
+insert into videoappointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 15), CAST ('00:23:32' AS TIME), 'Zoom');
+insert into videoappointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 16), CAST ('00:23:38' AS TIME), 'Skype');
+insert into videoappointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 17), CAST ('00:19:32' AS TIME), 'Skype');
+insert into videoAppointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 18), CAST ('00:19:28' AS TIME), 'Zoom');
+insert into videoAppointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 19), CAST ('00:23:28' AS TIME), 'Zoom');
+insert into videoappointment (appointmentid, video_length, video_type)
+values ((select appointmentid from appointment where patientid = 20), CAST ('00:23:24' AS TIME), 'Webex');
+
+go
+
+--Creating Trigger
+create trigger trigger_insert_review on review
+after insert , update  
+as   
+ 
+   declare @patientid decimal(12) = ( select patientid from inserted) ;
+   declare @doctorid decimal(12) = ( select doctorid from inserted) ;
+   declare @old_review varchar(300); declare  @old_stars decimal(1); 
+
+   if exists ( select * from deleted) 
+   begin 
+    set @old_stars = ( select stars from deleted);
+	set @old_review = ( select [review_note] from deleted); 
+   end 
+   else
+   begin
+    set @old_stars   = ( select   stars from review where patientid = @patientid and doctorid=@doctorid  
+	order by review_date desc  offset 1 rows fetch next 1 rows only  ) ;
+	set @old_review  = ( select   [review_note] from review where patientid = @patientid and doctorid=@doctorid  
+	order by review_date desc offset 1 rows fetch next 1 rows only ); 
+   end 
+      
+   insert into reviewchange (reviewchangeid, reviewid, old_review, new_review, old_stars, new_stars, review_change_date)
+     select next value for reviewchange_seq, reviewid, @old_review as old_review ,review_note as new_review, @old_stars as old_stars,stars as new_stars,
+	 getdate() as review_change_date
+	 from inserted 
+		
+go
+
+DECLARE @patient_id decimal(12) = (SELECT patientid from patient WHERE first_name ='Michael' and last_name ='Scott')
+DECLARE @doctor_id decimal(12) = (SELECT doctorid from doctor WHERE dr_first_name ='Ralph' and dr_last_name ='Mckenzie')
+
+--Executing stored procedure about booking an appointment
+
+BEGIN TRANSACTION bookappointment
+EXECUTE bookappointment @patient_id, @doctor_id, '2021-10-08', '13:00'; 
+COMMIT TRANSACTION bookappointment;
+go
+
+DECLARE @patient_id_1 decimal(12) = (SELECT patientid from patient WHERE first_name ='Dwight' and last_name ='Schrute')
+DECLARE @doctor_id_1 decimal(12) = (SELECT doctorid from doctor WHERE dr_first_name ='Ralph' and dr_last_name ='Mckenzie')
+
+--Executing stored procedure about leaving a review
+BEGIN TRANSACTION leavereview
+EXECUTE leavereview @patient_id_1, @doctor_id_1, '2021-10-10', 5, '100/100 for the doctor. Best experience ever'; 
+COMMIT TRANSACTION leavereview;
+go
